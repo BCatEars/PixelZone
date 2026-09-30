@@ -1,0 +1,169 @@
+package com.pixelzone.ui;
+
+import com.pixelzone.dao.ClienteDAO;
+import com.pixelzone.dao.EjemplarDAO;
+import com.pixelzone.dao.RentaDAO;
+import com.pixelzone.exception.DAOException;
+import com.pixelzone.model.Cliente;
+import com.pixelzone.model.Ejemplar;
+import com.pixelzone.model.Renta;
+import com.pixelzone.session.UserSession;
+
+import javax.swing.JComboBox;
+import javax.swing.JTextField;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
+import java.util.List;
+
+/**
+ * Rentas: alta (ejemplar a 'rentado') y devolucion (a 'disponible'), con kardex.
+ */
+public class PanelRentas extends PanelCrudBase {
+
+    private static final String[] COLUMNAS = {
+            "Cliente", "Producto", "Serie", "Fecha limite", "Monto", "Deposito", "Estado"
+    };
+
+    private final ClienteDAO clienteDAO = new ClienteDAO();
+    private final EjemplarDAO ejemplarDAO = new EjemplarDAO();
+    private final RentaDAO rentaDAO = new RentaDAO();
+
+    private final JComboBox<Cliente> comboCliente = new JComboBox<>();
+    private final JComboBox<Ejemplar> comboEjemplar = new JComboBox<>();
+    private final JTextField campoFechaLimite = new JTextField(LocalDate.now().plusDays(7).toString(), 10);
+    private final JTextField campoMonto = new JTextField(10);
+    private final JTextField campoDeposito = new JTextField("0", 10);
+    private final JComboBox<String> comboCondicion = new JComboBox<>(
+            new String[]{"buena", "con_desgaste", "danado", "incompleto"});
+    private final JTextField campoMontoExtra = new JTextField("0", 10);
+
+    private List<Renta> filas = List.of();
+
+    public PanelRentas(UserSession sesion, MainFrame frame) {
+        super(sesion, frame, COLUMNAS);
+        construirFormulario();
+        cargarCombos();
+        refrescar();
+    }
+
+    private void construirFormulario() {
+        campo("Cliente:", comboCliente);
+        campo("Ejemplar rentable:", comboEjemplar);
+        campo("Fecha limite:", campoFechaLimite);
+        campo("Monto renta:", campoMonto);
+        campo("Deposito:", campoDeposito);
+        campo("Condicion retorno:", comboCondicion);
+        campo("Monto extra:", campoMontoExtra);
+
+        agregarBoton("Registrar renta", this::registrar);
+        agregarBoton("Devolver", this::devolver);
+        agregarBoton("Limpiar", this::limpiar);
+    }
+
+    private void cargarCombos() {
+        try {
+            comboCliente.removeAllItems();
+            for (Cliente c : clienteDAO.listarActivos()) {
+                comboCliente.addItem(c);
+            }
+            comboEjemplar.removeAllItems();
+            for (Ejemplar e : ejemplarDAO.listarRentablesDisponibles()) {
+                comboEjemplar.addItem(e);
+            }
+        } catch (DAOException ex) {
+            aviso(ex.getMessage());
+        }
+    }
+
+    private void refrescar() {
+        try {
+            filas = rentaDAO.listar();
+            modelo.setRowCount(0);
+            for (Renta r : filas) {
+                modelo.addRow(new Object[]{
+                        r.getNombreCliente(), r.getNombreProducto(), r.getNumeroSerie(),
+                        r.getFechaLimite(), r.getMontoRenta(), r.getDeposito(), r.getEstado()});
+            }
+            setMensaje(filas.size() + " rentas.");
+        } catch (DAOException ex) {
+            aviso(ex.getMessage());
+        }
+    }
+
+    private void registrar() throws DAOException {
+        Cliente cliente = (Cliente) comboCliente.getSelectedItem();
+        if (cliente == null) {
+            aviso("Selecciona un cliente.");
+            return;
+        }
+        Ejemplar ejemplar = (Ejemplar) comboEjemplar.getSelectedItem();
+        if (ejemplar == null) {
+            aviso("No hay ejemplares rentables disponibles.");
+            return;
+        }
+        LocalDate fecha = parseFecha(campoFechaLimite.getText());
+        if (fecha == null) {
+            return;
+        }
+        BigDecimal monto = decimalRequerido(campoMonto.getText(), "monto de renta");
+        if (monto == null) {
+            return;
+        }
+        rentaDAO.registrar(cliente.getIdCliente(), ejemplar.getIdEjemplar(), fecha, monto,
+                decimalOpcional(campoDeposito.getText(), "deposito"), sesion.getUsuario().getIdUsuario());
+        frame.setMensaje("Renta registrada para " + cliente.getNombre());
+        cargarCombos();
+        refrescar();
+    }
+
+    private void devolver() throws DAOException {
+        Renta renta = rentaSeleccionada();
+        if (renta == null) {
+            aviso("Selecciona una renta de la tabla primero.");
+            return;
+        }
+        if (!"activa".equals(renta.getEstado()) && !"vencida".equals(renta.getEstado())) {
+            aviso("Solo se pueden devolver rentas activas o vencidas.");
+            return;
+        }
+        rentaDAO.devolver(renta.getIdRenta(), renta.getIdEjemplar(),
+                (String) comboCondicion.getSelectedItem(),
+                decimalOpcional(campoMontoExtra.getText(), "monto extra"),
+                sesion.getUsuario().getIdUsuario());
+        frame.setMensaje("Devolucion registrada para " + renta.getNumeroSerie());
+        cargarCombos();
+        refrescar();
+    }
+
+    private Renta rentaSeleccionada() {
+        int vista = tabla.getSelectedRow();
+        if (vista < 0) {
+            return null;
+        }
+        int fila = tabla.convertRowIndexToModel(vista);
+        return (fila >= 0 && fila < filas.size()) ? filas.get(fila) : null;
+    }
+
+    private LocalDate parseFecha(String texto) {
+        try {
+            return LocalDate.parse(texto.trim());
+        } catch (DateTimeParseException ex) {
+            aviso("Fecha invalida: usa el formato AAAA-MM-DD.");
+            return null;
+        }
+    }
+
+    @Override
+    protected void alSeleccionar(int filaModelo) {
+    }
+
+    private void limpiar() {
+        campoFechaLimite.setText(LocalDate.now().plusDays(7).toString());
+        campoMonto.setText("");
+        campoDeposito.setText("0");
+        comboCondicion.setSelectedIndex(0);
+        campoMontoExtra.setText("0");
+        tabla.clearSelection();
+    }
+}
