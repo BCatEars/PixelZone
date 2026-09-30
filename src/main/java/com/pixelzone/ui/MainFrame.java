@@ -37,6 +37,7 @@ public class MainFrame extends JFrame {
     private final JPanel tarjetas = new JPanel(cardLayout);
     private final JLabel etiquetaEstado = new JLabel("Sesion iniciada.");
     private final Map<DefaultMutableTreeNode, String> tarjetaPorNodo = new HashMap<>();
+    private final Map<DefaultMutableTreeNode, JComponent> componentePorNodo = new HashMap<>();
     private int contadorTarjetas = 0;
 
     public MainFrame(UserSession sesion, Runnable alCerrarSesion) {
@@ -98,6 +99,10 @@ public class MainFrame extends JFrame {
                 if (tarjeta != null) {
                     cardLayout.show(tarjetas, tarjeta);
                 }
+                JComponent componente = componentePorNodo.get(nodo);
+                if (componente instanceof Recargable recargable) {
+                    recargable.recargar();
+                }
             }
         });
 
@@ -124,10 +129,12 @@ public class MainFrame extends JFrame {
             return;
         }
         String nombreTarjeta = "card-" + (contadorTarjetas++);
-        tarjetas.add(fabrica.get(), nombreTarjeta);
+        JComponent componente = fabrica.get();
+        tarjetas.add(componente, nombreTarjeta);
         DefaultMutableTreeNode hoja = new DefaultMutableTreeNode(etiqueta);
         modulo.add(hoja);
         tarjetaPorNodo.put(hoja, nombreTarjeta);
+        componentePorNodo.put(hoja, componente);
     }
 
     private void quitarModulosVacios(DefaultMutableTreeNode raiz) {

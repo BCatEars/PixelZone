@@ -95,7 +95,8 @@ public class PanelApartados extends PanelCrudBase {
         }
         Ejemplar ejemplar = (Ejemplar) comboEjemplar.getSelectedItem();
         if (ejemplar == null) {
-            aviso("No hay ejemplares disponibles.");
+            aviso("No hay ejemplares disponibles.\n"
+                    + "Crea copias en Inventario ▸ Ejemplares con estado 'disponible'.");
             return;
         }
         LocalDate fecha = parseFecha(campoFechaLimite.getText());
@@ -163,6 +164,12 @@ public class PanelApartados extends PanelCrudBase {
             aviso("Fecha invalida: usa el formato AAAA-MM-DD.");
             return null;
         }
+    }
+
+    @Override
+    public void recargar() {
+        cargarCombos();
+        refrescar();
     }
 
     @Override

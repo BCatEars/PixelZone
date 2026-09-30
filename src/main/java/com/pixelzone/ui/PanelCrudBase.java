@@ -33,7 +33,7 @@ import java.math.RoundingMode;
  * botones con {@link #agregarBoton} y reaccionan a la seleccion en
  * {@link #alSeleccionar(int)}.</p>
  */
-public abstract class PanelCrudBase extends JPanel {
+public abstract class PanelCrudBase extends JPanel implements Recargable {
 
     protected final UserSession sesion;
     protected final MainFrame frame;
@@ -87,6 +87,13 @@ public abstract class PanelCrudBase extends JPanel {
      * Invocado cuando el usuario selecciona una fila (indice del modelo).
      */
     protected abstract void alSeleccionar(int filaModelo);
+
+    /**
+     * Recarga datos y combos al mostrar el panel. Las subclases deben delegar
+     * en su metodo de refresco (y recargar catalogos cuando aplique).
+     */
+    @Override
+    public abstract void recargar();
 
     protected JLabel campo(String etiqueta, JComponent componente) {
         GridBagConstraints gbc = new GridBagConstraints();

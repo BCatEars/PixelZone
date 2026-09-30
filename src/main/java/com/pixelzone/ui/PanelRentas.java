@@ -85,7 +85,9 @@ public class PanelRentas extends PanelCrudBase {
                         r.getNombreCliente(), r.getNombreProducto(), r.getNumeroSerie(),
                         r.getFechaLimite(), r.getMontoRenta(), r.getDeposito(), r.getEstado()});
             }
-            setMensaje(filas.size() + " rentas.");
+            setMensaje(filas.size() + " rentas."
+                    + (comboEjemplar.getItemCount() == 0
+                    ? "  (Sin ejemplares rentables disponibles)" : ""));
         } catch (DAOException ex) {
             aviso(ex.getMessage());
         }
@@ -99,7 +101,9 @@ public class PanelRentas extends PanelCrudBase {
         }
         Ejemplar ejemplar = (Ejemplar) comboEjemplar.getSelectedItem();
         if (ejemplar == null) {
-            aviso("No hay ejemplares rentables disponibles.");
+            aviso("No hay ejemplares rentables disponibles.\n"
+                    + "Verifica que existan ejemplares con estado 'disponible' "
+                    + "y que el producto sea 'Rentable'.");
             return;
         }
         LocalDate fecha = parseFecha(campoFechaLimite.getText());
@@ -152,6 +156,12 @@ public class PanelRentas extends PanelCrudBase {
             aviso("Fecha invalida: usa el formato AAAA-MM-DD.");
             return null;
         }
+    }
+
+    @Override
+    public void recargar() {
+        cargarCombos();
+        refrescar();
     }
 
     @Override

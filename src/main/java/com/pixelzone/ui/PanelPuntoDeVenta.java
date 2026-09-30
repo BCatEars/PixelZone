@@ -99,7 +99,9 @@ public class PanelPuntoDeVenta extends PanelCrudBase {
                         e.getNombreProducto(), e.getNumeroSerie(), e.getPrecioVenta()});
             }
             actualizarTotal();
-            setMensaje(disponibles.size() + " ejemplares disponibles.");
+            setMensaje(disponibles.isEmpty()
+                    ? "No hay ejemplares disponibles. Crea copias en Inventario ▸ Ejemplares."
+                    : disponibles.size() + " ejemplares disponibles.");
         } catch (DAOException ex) {
             aviso(ex.getMessage());
         }
@@ -109,6 +111,11 @@ public class PanelPuntoDeVenta extends PanelCrudBase {
         Cliente cliente = (Cliente) comboCliente.getSelectedItem();
         if (cliente == null) {
             aviso("Selecciona un cliente.");
+            return;
+        }
+        if (disponibles.isEmpty()) {
+            aviso("No hay ejemplares disponibles para vender.\n"
+                    + "Crea copias en Inventario ▸ Ejemplares con estado 'disponible'.");
             return;
         }
         List<Ejemplar> seleccionados = seleccionados();
@@ -160,6 +167,12 @@ public class PanelPuntoDeVenta extends PanelCrudBase {
         } catch (NumberFormatException ex) {
             return BigDecimal.ZERO;
         }
+    }
+
+    @Override
+    public void recargar() {
+        cargarClientes();
+        refrescar();
     }
 
     @Override

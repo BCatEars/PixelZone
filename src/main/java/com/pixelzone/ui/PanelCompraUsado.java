@@ -119,6 +119,12 @@ public class PanelCompraUsado extends PanelCrudBase {
     }
 
     @Override
+    public void recargar() {
+        cargarCombos();
+        refrescar();
+    }
+
+    @Override
     protected void alSeleccionar(int filaModelo) {
     }
 

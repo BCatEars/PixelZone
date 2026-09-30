@@ -224,6 +224,12 @@ public class PanelEjemplares extends PanelCrudBase {
     }
 
     @Override
+    public void recargar() {
+        cargarCombos();
+        refrescar();
+    }
+
+    @Override
     protected void alSeleccionar(int filaModelo) {
         if (filaModelo < 0 || filaModelo >= filas.size()) {
             return;

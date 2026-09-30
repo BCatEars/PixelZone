@@ -133,6 +133,11 @@ public class PanelProveedores extends PanelCrudBase {
     }
 
     @Override
+    public void recargar() {
+        refrescar();
+    }
+
+    @Override
     protected void alSeleccionar(int filaModelo) {
         if (filaModelo < 0 || filaModelo >= filas.size()) {
             return;

@@ -168,6 +168,12 @@ public class PanelUsuarios extends PanelCrudBase {
     }
 
     @Override
+    public void recargar() {
+        cargarPerfiles();
+        refrescar();
+    }
+
+    @Override
     protected void alSeleccionar(int filaModelo) {
         if (filaModelo < 0 || filaModelo >= filas.size()) {
             return;
