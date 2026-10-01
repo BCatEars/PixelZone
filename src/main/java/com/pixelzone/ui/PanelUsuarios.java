@@ -102,6 +102,11 @@ public class PanelUsuarios extends PanelCrudBase {
         if (e == null) {
             return;
         }
+        if (seleccionado.getIdUsuario().equals(sesion.getUsuario().getIdUsuario())
+                && !e.isActivo()) {
+            aviso("No puedes desactivar tu propia cuenta en sesion.");
+            return;
+        }
         dao.actualizar(e);
         frame.setMensaje("Usuario actualizado: " + e.getNombreUsuario());
         refrescar();
