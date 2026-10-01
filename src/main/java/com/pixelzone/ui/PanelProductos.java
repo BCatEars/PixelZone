@@ -31,7 +31,7 @@ public class PanelProductos extends PanelCrudBase {
     private static final String SIN_CLASIFICACION = "(ninguna)";
 
     private static final String[] COLUMNAS = {
-            "Codigo", "Nombre", "Tipo", "Categoria", "Plataforma",
+            "Codigo", "Nombre", "Categoria", "Plataforma",
             "P. nuevo", "P. usado", "Rentable", "Activo"
     };
 
@@ -75,8 +75,10 @@ public class PanelProductos extends PanelCrudBase {
         campo("Edicion:", campoEdicion);
         campo("Fecha lanzamiento:", campoFecha);
         campo("Plataforma:", comboPlataforma);
-        campo("Precio nuevo:", campoPrecioNuevo);
-        campo("Precio usado:", campoPrecioUsado);
+        campo("Precio nuevo (referencia):", campoPrecioNuevo);
+        campo("Precio usado (referencia):", campoPrecioUsado);
+        campoPrecioNuevo.setToolTipText("Precio de lista para una copia nueva. Solo sugiere el precio al crear un ejemplar o comprar stock.");
+        campoPrecioUsado.setToolTipText("Precio de lista para una copia usada. Aplica a ejemplares con condicion 'usado'.");
         campoAnchoCompleto(checkRentable);
         campoAnchoCompleto(checkActivo);
 
@@ -139,7 +141,7 @@ public class PanelProductos extends PanelCrudBase {
             modelo.setRowCount(0);
             for (Producto p : filas) {
                 modelo.addRow(new Object[]{
-                        p.getCodigoInterno(), p.getNombre(), p.getTipo(),
+                        p.getCodigoInterno(), p.getNombre(),
                         p.getNombreCategoria(), p.getNombrePlataforma(),
                         p.getPrecioNuevo(), p.getPrecioUsado(),
                         p.isRentable() ? "Si" : "No", p.isActivo() ? "Si" : "No"});

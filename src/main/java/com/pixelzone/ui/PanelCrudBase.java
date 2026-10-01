@@ -191,6 +191,12 @@ public abstract class PanelCrudBase extends JPanel implements Recargable {
     }
 
     protected void seleccionarItem(JComboBox<ItemCombo> combo, String id) {
+        if (combo instanceof ComboBuscable) {
+            @SuppressWarnings("unchecked")
+            ComboBuscable<ItemCombo> buscable = (ComboBuscable<ItemCombo>) combo;
+            buscable.preseleccionar(i -> id == null ? i.getId() == null : id.equals(i.getId()));
+            return;
+        }
         if (id == null) {
             if (combo.getItemCount() > 0) {
                 combo.setSelectedIndex(0);

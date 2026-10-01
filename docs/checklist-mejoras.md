@@ -115,6 +115,7 @@ Deuda derivada de lo anterior (aplicada y verificada contra MySQL real):
 
 - [x] Resuelto en BD: `tipo` vive en `categorias` (`PZ_DDL.sql`).
 - [x] Resuelto en Java (punto 0): `comboTipo` fuera de `PanelProductos`; `ProductoDAO` lee `c.tipo AS tipo` sin persistirlo.
+- [x] **Columna "Tipo" eliminada de la tabla de productos:** era redundante con "Categoria" (el tipo es el `categorias.tipo` de esa categoría). Quedan: Codigo, Nombre, Categoria, Plataforma, precios, Rentable, Activo.
 
 ---
 
@@ -145,6 +146,7 @@ Deuda derivada de lo anterior (aplicada y verificada contra MySQL real):
 - [x] Nuevo **`ui/ComboBuscable<T>`**: `JComboBox` editable con filtro incremental (`contains`, case-insensitive), `displayFn` inyectada, `setItems` que conserva la selección, `preseleccionar(Predicate)`, Enter (primer match) / Escape (limpiar) y sincronización del editor al perder foco. El filtrado se difiere con `SwingUtilities.invokeLater` (no se puede mutar el modelo dentro de la notificación del documento) y el `DocumentListener` se retira en los cambios programáticos para evitar filtros espurios.
 - [x] Aplicado en: `PanelPuntoDeVenta` (cliente, con preselección del anónimo), `PanelRentas`, `PanelApartados`, `PanelEjemplares`, `PanelCompraUsado`, `PanelCompras` (proveedor y producto) y `PanelProductos` (categoría, plataforma).
 - [x] **Verificado**: test headless del componente (filtro por substring, `preseleccionar`, `setItems` conserva selección) + `MainFrame` instanciado con todos los paneles contra la BD viva.
+- [x] **Fix (bug detectado en pruebas):** los cambios programáticos (`setSelectedItem`/`setSelectedIndex`/`setItems`/`preseleccionar`) ya no disparan filtrado ni dejan filtros pendientes; antes, al seleccionar una fila el modelo quedaba reducido al ítem elegido y ya no se podía cambiar a otra categoría. `PanelCrudBase.seleccionarItem` usa `preseleccionar` para los `ComboBuscable`.
 - *Archivos:* `ComboBuscable`, paneles listados.
 
 ---

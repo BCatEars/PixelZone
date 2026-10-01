@@ -27,13 +27,14 @@ import java.util.function.Predicate;
  *   <li>Enter selecciona el primer item filtrado.</li>
  *   <li>Escape limpia el filtro.</li>
  *   <li>Al perder foco se restaura el texto del item seleccionado.</li>
- *   <li>{@link #setItems(List)} conserva el item seleccionado si sigue presente.</li>
+ *   <li>{@link #setItems(List)} y {@link #preseleccionar(Predicate)} conservan la
+ *       lista completa y no disparan filtrado.</li>
  * </ul>
  *
- * <p>El filtrado se difiere a {@link SwingUtilities#invokeLater} porque no se
- * puede mutar el modelo dentro de la notificacion del documento. Los cambios
- * programaticos retiran temporalmente el listener para no disparar filtros
- * espurios.</p>
+ * <p>Los cambios programaticos ({@link #setSelectedItem}, {@link #setSelectedIndex},
+ * {@code setItems}, {@code preseleccionar}) se ejecutan con {@code ignorarFiltro}
+ * activo e invalidan cualquier filtrado pendiente: si no, al elegir una fila el
+ * modelo quedaba reducido al item seleccionado y ya no se podia cambiar a otro.</p>
  */
 public class ComboBuscable<T> extends JComboBox<T> {
 
@@ -42,6 +43,8 @@ public class ComboBuscable<T> extends JComboBox<T> {
     private final DefaultComboBoxModel<T> modelo = new DefaultComboBoxModel<>();
     private final DocumentListener listener;
     private boolean filtroPendiente = false;
+    private boolean ignorarFiltro = false;
+    private int generacion = 0;
 
     public ComboBuscable(Function<T, String> displayFn) {
         this.displayFn = displayFn;
@@ -117,11 +120,10 @@ public class ComboBuscable<T> extends JComboBox<T> {
         });
     }
 
-    /** Selecciona el primer item que cumpla el filtro (p. ej. cliente anonimo). */
+    /** Restaura la lista completa y selecciona el primer item que cumpla el filtro. */
     public void preseleccionar(Predicate<T> filtro) {
         T objetivo = null;
-        for (int i = 0; i < modelo.getSize(); i++) {
-            T item = modelo.getElementAt(i);
+        for (T item : todos) {
             if (filtro.test(item)) {
                 objetivo = item;
                 break;
@@ -142,18 +144,32 @@ public class ComboBuscable<T> extends JComboBox<T> {
     }
 
     @Override
+    public void setSelectedItem(Object anObject) {
+        programatico(() -> super.setSelectedItem(anObject));
+    }
+
+    @Override
+    public void setSelectedIndex(int anIndex) {
+        programatico(() -> super.setSelectedIndex(anIndex));
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     public T getSelectedItem() {
         return (T) modelo.getSelectedItem();
     }
 
     private void filtrar() {
-        if (filtroPendiente) {
+        if (ignorarFiltro || filtroPendiente) {
             return;
         }
         filtroPendiente = true;
+        int miGeneracion = ++generacion;
         SwingUtilities.invokeLater(() -> {
             filtroPendiente = false;
+            if (miGeneracion != generacion) {
+                return; // un cambio programatico invalido este filtrado
+            }
             aplicarFiltro();
         });
     }
@@ -206,13 +222,18 @@ public class ComboBuscable<T> extends JComboBox<T> {
         editor().setText(texto);
     }
 
-    /** Ejecuta un cambio sin que el listener de documento dispare filtrado. */
+    /**
+     * Ejecuta un cambio programatico sin disparar filtrado e invalida cualquier
+     * filtrado que hubiera quedado pendiente en el EDT.
+     */
     private void programatico(Runnable cambio) {
-        editor().getDocument().removeDocumentListener(listener);
+        boolean previo = ignorarFiltro;
+        ignorarFiltro = true;
+        generacion++;
         try {
             cambio.run();
         } finally {
-            editor().getDocument().addDocumentListener(listener);
+            ignorarFiltro = previo;
         }
     }
 

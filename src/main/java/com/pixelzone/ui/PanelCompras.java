@@ -39,7 +39,7 @@ import java.util.List;
 public class PanelCompras extends JPanel implements Recargable {
 
     private static final String[] COLUMNAS = {
-            "Producto", "Cantidad", "Costo unitario", "Precio venta", "Subtotal"
+            "Producto", "Cantidad", "Costo compra", "Precio publico", "Subtotal"
     };
 
     private final UserSession sesion;
@@ -130,10 +130,12 @@ public class PanelCompras extends JPanel implements Recargable {
         linea.add(comboProducto);
         linea.add(new JLabel("Cantidad:"));
         linea.add(campoCantidad);
-        linea.add(new JLabel("Costo unitario:"));
+        linea.add(new JLabel("Costo unitario (compra):"));
         linea.add(campoCosto);
-        linea.add(new JLabel("Precio venta:"));
+        campoCosto.setToolTipText("Lo que la tienda paga al proveedor por unidad. Se guarda como costo del ejemplar.");
+        linea.add(new JLabel("Precio al publico:"));
         linea.add(campoPrecioVenta);
+        campoPrecioVenta.setToolTipText("Precio de venta de cada ejemplar generado. Se sugiere desde productos.precio_nuevo.");
         JButton agregar = new JButton("Agregar");
         agregar.addActionListener(e -> agregarLinea());
         linea.add(agregar);
