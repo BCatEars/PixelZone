@@ -32,7 +32,7 @@ public class PanelPuntoDeVenta extends PanelCrudBase {
     private final EjemplarDAO ejemplarDAO = new EjemplarDAO();
     private final VentaPOSDAO ventaDAO = new VentaPOSDAO();
 
-    private final JComboBox<Cliente> comboCliente = new JComboBox<>();
+    private final ComboBuscable<Cliente> comboCliente = new ComboBuscable<>(Object::toString);
     private final JComboBox<String> comboMetodo =
             new JComboBox<>(new String[]{"efectivo", "tarjeta", "transferencia", "otro"});
     private final JTextField campoDescuento = new JTextField("0", 8);
@@ -81,9 +81,13 @@ public class PanelPuntoDeVenta extends PanelCrudBase {
 
     private void cargarClientes() {
         try {
-            comboCliente.removeAllItems();
-            for (Cliente c : clienteDAO.listarActivos()) {
-                comboCliente.addItem(c);
+            Cliente previo = comboCliente.getSelectedItem();
+            String idPrevio = previo == null ? null : previo.getIdCliente();
+            comboCliente.setItems(clienteDAO.listarActivos());
+            if (idPrevio != null) {
+                comboCliente.preseleccionar(c -> idPrevio.equals(c.getIdCliente()));
+            } else {
+                comboCliente.preseleccionar(c -> "anonimo".equals(c.getTipoCliente()));
             }
         } catch (DAOException ex) {
             aviso(ex.getMessage());

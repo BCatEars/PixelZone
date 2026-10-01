@@ -51,7 +51,7 @@ public abstract class PanelCrudBase extends JPanel implements Recargable {
         this.modelo = new DefaultTableModel(columnas, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
-                return false;
+                return celdaEditable(row, column);
             }
         };
         this.tabla = new JTable(modelo);
@@ -87,6 +87,14 @@ public abstract class PanelCrudBase extends JPanel implements Recargable {
      * Invocado cuando el usuario selecciona una fila (indice del modelo).
      */
     protected abstract void alSeleccionar(int filaModelo);
+
+    /**
+     * Por defecto la tabla es de solo lectura; las subclases pueden habilitar
+     * celdas concretas (p. ej. edicion en linea de condicion/monto extra).
+     */
+    protected boolean celdaEditable(int fila, int columna) {
+        return false;
+    }
 
     /**
      * Recarga datos y combos al mostrar el panel. Las subclases deben delegar

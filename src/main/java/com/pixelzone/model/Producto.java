@@ -4,14 +4,17 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
- * Fila de {@code productos}. Incluye campos de presentacion con los nombres de
- * categoria y plataforma obtenidos por JOIN.
+ * Fila de {@code productos}. Incluye campos de presentacion obtenidos por JOIN:
+ * {@code nombreCategoria}, {@code nombrePlataforma} y {@code tipo} (que vive en
+ * {@code categorias.tipo}). El {@code tipo} es de solo lectura: se puebla al
+ * consultar y no se captura ni se persiste desde aqui.
  */
 public class Producto {
 
     private String idProducto;
     private String idCategoria;
     private String idPlataforma;
+    private String idGenero;
     private String codigoInterno;
     private String codigoBarras;
     private String nombre;
@@ -50,6 +53,14 @@ public class Producto {
 
     public void setIdPlataforma(String idPlataforma) {
         this.idPlataforma = idPlataforma;
+    }
+
+    public String getIdGenero() {
+        return idGenero;
+    }
+
+    public void setIdGenero(String idGenero) {
+        this.idGenero = idGenero;
     }
 
     public String getCodigoInterno() {

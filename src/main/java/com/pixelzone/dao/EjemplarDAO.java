@@ -3,6 +3,7 @@ package com.pixelzone.dao;
 import com.pixelzone.config.DatabaseConfig;
 import com.pixelzone.exception.DAOException;
 import com.pixelzone.model.Ejemplar;
+import com.pixelzone.util.SerieGenerator;
 import com.pixelzone.util.Sql;
 
 import java.sql.Connection;
@@ -37,12 +38,12 @@ public class EjemplarDAO {
 
     private static final String SQL_INSERT =
             "INSERT INTO ejemplares (id_ejemplar, id_producto, numero_serie, condicion, costo, "
-                    + "precio_venta, estado, tiene_caja, tiene_manual, observaciones, id_cliente_origen) "
-                    + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    + "precio_venta, tiene_caja, tiene_manual, observaciones, id_cliente_origen) "
+                    + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     private static final String SQL_UPDATE =
             "UPDATE ejemplares SET id_producto = ?, numero_serie = ?, condicion = ?, costo = ?, "
-                    + "precio_venta = ?, estado = ?, tiene_caja = ?, tiene_manual = ?, "
+                    + "precio_venta = ?, tiene_caja = ?, tiene_manual = ?, "
                     + "observaciones = ?, id_cliente_origen = ? WHERE id_ejemplar = ?";
 
     private static final String SQL_ESTADO =
@@ -50,6 +51,9 @@ public class EjemplarDAO {
 
     private static final String SQL_BAJA =
             "UPDATE ejemplares SET estado = 'baja' WHERE id_ejemplar = ?";
+
+    private static final String SQL_REACTIVAR =
+            "UPDATE ejemplares SET estado = 'disponible' WHERE id_ejemplar = ? AND estado = 'baja'";
 
     public List<Ejemplar> listar() throws DAOException {
         return consultar(SQL_LISTAR);
@@ -80,17 +84,36 @@ public class EjemplarDAO {
         }
     }
 
-    public void actualizar(Ejemplar e, String idUsuario) throws DAOException {
+    public void crearLote(List<Ejemplar> lote, String idUsuario) throws DAOException {
+        if (lote == null || lote.isEmpty()) {
+            throw new DAOException("El lote de ejemplares esta vacio.");
+        }
         try (Connection conn = DatabaseConfig.getConnection()) {
             conn.setAutoCommit(false);
             try {
-                String estadoAnterior = estadoActual(conn, e.getIdEjemplar());
-                actualizar(conn, e);
-                if (estadoAnterior != null && !estadoAnterior.equals(e.getEstado())) {
-                    Kardex.registrar(conn, e.getIdEjemplar(), idUsuario, tipoPara(e.getEstado()),
-                            "ajuste_manual",
-                            "Cambio de estado: " + estadoAnterior + " -> " + e.getEstado());
+                for (Ejemplar e : lote) {
+                    if (e.getNumeroSerie() == null || e.getNumeroSerie().isBlank()) {
+                        e.setNumeroSerie(SerieGenerator.generar(conn, e.getIdProducto()));
+                    }
+                    insertar(conn, e);
+                    Kardex.registrar(conn, e.getIdEjemplar(), idUsuario, "entrada", "ajuste_manual",
+                            "Alta manual de ejemplar (lote)");
                 }
+                conn.commit();
+            } catch (SQLException ex) {
+                Sql.rollback(conn, ex);
+                throw new DAOException(mensaje(ex, "No se pudo crear el lote de ejemplares"), ex);
+            }
+        } catch (SQLException ex) {
+            throw new DAOException("Error de conexion: " + ex.getMessage(), ex);
+        }
+    }
+
+    public void actualizar(Ejemplar e) throws DAOException {
+        try (Connection conn = DatabaseConfig.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                actualizar(conn, e);
                 conn.commit();
             } catch (SQLException ex) {
                 Sql.rollback(conn, ex);
@@ -127,6 +150,28 @@ public class EjemplarDAO {
         }
     }
 
+    public void reactivar(String idEjemplar, String idUsuario) throws DAOException {
+        try (Connection conn = DatabaseConfig.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                try (PreparedStatement ps = conn.prepareStatement(SQL_REACTIVAR)) {
+                    ps.setString(1, idEjemplar);
+                    if (ps.executeUpdate() == 0) {
+                        throw new SQLException("El ejemplar no esta dado de baja.");
+                    }
+                }
+                Kardex.registrar(conn, idEjemplar, idUsuario, "ajuste", "ajuste_manual",
+                        "Reactivacion de ejemplar (baja -> disponible)");
+                conn.commit();
+            } catch (SQLException ex) {
+                Sql.rollback(conn, ex);
+                throw new DAOException(mensaje(ex, "No se pudo reactivar el ejemplar"), ex);
+            }
+        } catch (SQLException ex) {
+            throw new DAOException("Error de conexion: " + ex.getMessage(), ex);
+        }
+    }
+
     private void insertar(Connection conn, Ejemplar e) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(SQL_INSERT)) {
             ps.setString(1, e.getIdEjemplar());
@@ -135,11 +180,10 @@ public class EjemplarDAO {
             ps.setString(4, e.getCondicion());
             ps.setBigDecimal(5, e.getCosto());
             ps.setBigDecimal(6, e.getPrecioVenta());
-            ps.setString(7, e.getEstado());
-            ps.setBoolean(8, e.isTieneCaja());
-            ps.setBoolean(9, e.isTieneManual());
-            ps.setString(10, e.getObservaciones());
-            ps.setString(11, e.getIdClienteOrigen());
+            ps.setBoolean(7, e.isTieneCaja());
+            ps.setBoolean(8, e.isTieneManual());
+            ps.setString(9, e.getObservaciones());
+            ps.setString(10, e.getIdClienteOrigen());
             ps.executeUpdate();
         }
     }
@@ -151,12 +195,11 @@ public class EjemplarDAO {
             ps.setString(3, e.getCondicion());
             ps.setBigDecimal(4, e.getCosto());
             ps.setBigDecimal(5, e.getPrecioVenta());
-            ps.setString(6, e.getEstado());
-            ps.setBoolean(7, e.isTieneCaja());
-            ps.setBoolean(8, e.isTieneManual());
-            ps.setString(9, e.getObservaciones());
-            ps.setString(10, e.getIdClienteOrigen());
-            ps.setString(11, e.getIdEjemplar());
+            ps.setBoolean(6, e.isTieneCaja());
+            ps.setBoolean(7, e.isTieneManual());
+            ps.setString(8, e.getObservaciones());
+            ps.setString(9, e.getIdClienteOrigen());
+            ps.setString(10, e.getIdEjemplar());
             ps.executeUpdate();
         }
     }
@@ -200,10 +243,6 @@ public class EjemplarDAO {
         e.setObservaciones(rs.getString("observaciones"));
         e.setIdClienteOrigen(rs.getString("id_cliente_origen"));
         return e;
-    }
-
-    private static String tipoPara(String estadoNuevo) {
-        return "baja".equals(estadoNuevo) ? "baja" : "ajuste";
     }
 
     private static String mensaje(SQLException ex, String base) {

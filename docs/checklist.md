@@ -1,12 +1,15 @@
 # PIXEL ZONE — Checklist para escribir el nuevo programa Java
 
-> La base de datos y los scripts SQL (`PZ_DDL.sql`, `PZ_DML.sql`, `PZ_PL.sql`) son el
-> **contrato congelado**. No se tocan. Todo lo de abajo debe responderse **antes de
-> escribir código**. Los puntos marcados **[TRAP]** son donde el esquema te va a morder.
+> La base de datos y los scripts SQL (`PZ_DDL.sql`, `PZ_DML.sql`, `PZ_PL.sql`) fueron
+> el **contrato congelado** durante la planeación. Los puntos marcados **[TRAP]** son
+> donde el esquema mordía. Ver `README.md` §6 ("Proceso de planeación") para las fases.
 >
 > **Estado: CERRADO.** Las 45 preguntas (más la ráfaga rápida) fueron respondidas en
-> `answers_checklist.md`, revisadas contra el esquema real y aplicadas en el código.
-> Ver `README.md` §6 ("Proceso de planeación") para las fases y decisiones.
+> `answers_checklist.md` y aplicadas en el código. **Después el contrato se
+> reestructuró** (3FN/BCNF): `productos.tipo` → `categorias.tipo`, `pedidos` +
+> `pedido_envio`, `detalle_pedidos.id_ejemplar`, `apartados.id_usuario`,
+> `promocion_alcance`, y `pagos` con `tipo_movimiento`/`concepto`. El detalle y el
+> seguimiento están en `checklist-mejoras.md`.
 
 ---
     
@@ -22,17 +25,17 @@
 
 ## Ronda 1 — Alcance (ser brutalmente específico)
 
-- [x] **6. Tablas de escritura vs solo lectura.** ¿A cuáles de las 24 tablas **escribe** la app y cuáles son solo lectura? Si mantienes el alcance antiguo (`clientes`, `productos`, `ejemplares`, `proveedores`), declara explícitamente que `ventas`, `rentas`, `pagos`, `compras`, `pedidos`, `apartados`, `promociones` y `devoluciones_garantia` **no** se insertan desde la app.
+- [x] **6. Tablas de escritura vs solo lectura.** ¿A cuáles de las **29 tablas** **escribe** la app y cuáles son solo lectura? Si mantienes el alcance antiguo (`clientes`, `productos`, `ejemplares`, `proveedores`), declara explícitamente qué operaciones se insertan desde la app.
 - [x] **7. [TRAP] El kardex que nadie alimenta.** No hay **triggers**. `movimientos_inventario` (consumido por `vw_kardex_movimientos`) solo existe si algo lo inserta. ¿Quién lo escribe: la app, un trigger nuevo, o nadie (y mientes en la presentación)?
 - [x] **8. [TRAP] Huevo y gallina del usado.** `compras_usado.id_ejemplar` es `NOT NULL UNIQUE` y referencia un `ejemplares` existente. Define el orden exacto de inserts y de dónde sale ese primer `ejemplares`.
-- [x] **9. `detalle_ventas.id_ejemplar` es `UNIQUE`.** ¿Fuerzas `cantidad = 1` en la UI o permites `cantidad > 1` produciendo un subtotal que contradice la intención del UNIQUE? Define la regla.
+- [x] **9. `detalle_ventas` tiene `UNIQUE (id_venta, id_ejemplar)`.** *(Antes era `UNIQUE (id_ejemplar)`; se cambió para permitir revender un ejemplar cancelado sin duplicarlo en la misma venta.)* ¿Fuerzas `cantidad = 1` en la UI? Define la regla.
 - [x] **10. Precios producto vs ejemplar.** `productos` tiene `precio_nuevo`/`precio_usado`; `ejemplares` tiene su propio `costo`/`precio_venta`. Al crear un ejemplar, ¿copias precios del producto, los captura el usuario, o hay default? ¿Qué pasa cuando el precio del producto cambia después?
 
 ---
 
 ## Ronda 2 — Build y arquitectura
 
-- [x] **11.** `../pom.xml` fija `source/target = 26`. ¿Tienes toolchain Java 26 que compile de verdad, o es un número heredado? Si falla, ¿bajas a LTS (21/25)?
+- [x] **11.** `../pom.xml` fija `maven.compiler.release = 21` (Java 21 LTS). Confirma el toolchain que compila de verdad.
 - [x] **12.** Da los **nombres de paquetes** y la **lista de clases** reales, no "MVC". ¿Qué clase es dueña de la `Connection`? ¿Hay capa DAO o los paneles vuelven a construir SQL a mano (el README viejo admitía SQL crudo en paneles)?
 - [x] **13.** ¿Cómo se suministran URL/usuario/contraseña: constantes, `.properties`, o variables de entorno? El README viejo hardcodeaba `root` sin contraseña; ¿repites ese pecado?
 - [x] **14.** Ciclo de vida de la conexión: ¿una `Connection` para toda la app, una por operación, o pool (HikariCP)? Justifica contra el diseño antiguo "abrir/cerrar por operación".
@@ -104,9 +107,9 @@
 - [x] ¿`try-with-resources` en todas partes?
 - [x] ¿La app escribe en `movimientos_inventario`?
 - [x] ¿La app inserta en `pagos`?
-- [x] ¿Mantienes el layout de 7 pestañas?
-- [x] ¿Aceptas Java 26 como target?
-- [x] ¿**No** tocarás los scripts SQL?
+- [x] ¿Mantienes el layout de 7 pestañas? *(Histórico; hoy es híbrido: `JTabbedPane` por módulo + lista lateral + `CardLayout`.)*
+- [x] ¿Aceptas Java 26 como target? *(Histórico; fijado en Java 21 LTS.)*
+- [x] ¿**No** tocarás los scripts SQL? *(Histórico. Hoy **sí** se reestructuraron: ver `checklist-mejoras.md`.)*
 
 ---
 

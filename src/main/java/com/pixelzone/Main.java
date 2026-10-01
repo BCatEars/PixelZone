@@ -1,5 +1,6 @@
 package com.pixelzone;
 
+import com.formdev.flatlaf.FlatLightLaf;
 import com.pixelzone.session.UserSession;
 import com.pixelzone.ui.DialogoLogin;
 import com.pixelzone.ui.MainFrame;
@@ -16,6 +17,8 @@ public final class Main {
     }
 
     public static void main(String[] args) {
+        // Look & Feel moderno; debe aplicarse antes de crear cualquier componente.
+        FlatLightLaf.setup();
         SwingUtilities.invokeLater(Main::mostrarLogin);
     }
 

@@ -11,6 +11,7 @@ public class Renta {
 
     private String idRenta;
     private String idEjemplar;
+    private String idCliente;
     private String nombreCliente;
     private String nombreProducto;
     private String numeroSerie;
@@ -33,6 +34,14 @@ public class Renta {
 
     public void setIdEjemplar(String idEjemplar) {
         this.idEjemplar = idEjemplar;
+    }
+
+    public String getIdCliente() {
+        return idCliente;
+    }
+
+    public void setIdCliente(String idCliente) {
+        this.idCliente = idCliente;
     }
 
     public String getNombreCliente() {

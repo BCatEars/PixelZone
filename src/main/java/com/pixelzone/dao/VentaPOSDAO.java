@@ -34,8 +34,9 @@ public class VentaPOSDAO {
             "UPDATE ejemplares SET estado = 'vendido' WHERE id_ejemplar = ? AND estado = 'disponible'";
 
     private static final String SQL_INSERT_PAGO =
-            "INSERT INTO pagos (id_pago, id_venta, id_pedido, id_renta, id_apartado, monto, metodo_pago) "
-                    + "VALUES (?, ?, NULL, NULL, NULL, ?, ?)";
+            "INSERT INTO pagos (id_pago, id_venta, id_pedido, id_renta, id_apartado, monto, "
+                    + "tipo_movimiento, concepto, metodo_pago) "
+                    + "VALUES (?, ?, NULL, NULL, NULL, ?, 'cobro', 'venta', ?)";
 
     /**
      * Registra una venta completa.

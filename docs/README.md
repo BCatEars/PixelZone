@@ -1,19 +1,20 @@
 # PIXEL ZONE — Sistema de Gestión
 
-Aplicación de escritorio **Java 21 + Swing + JDBC** que funciona como cliente de
+Aplicación de escritorio **Java 21 + Swing (FlatLaf) + JDBC** que funciona como cliente de
 la base de datos MySQL **`pixel_zone`** para administrar una tienda de
 videojuegos (catálogo, inventario por ejemplar, clientes, compras, ventas,
 rentas, apartados, e-commerce de solo lectura, kardex y control de acceso por
 perfil).
 
 Es un proyecto académico de **Fundamentos de Bases de Datos**: el grueso del
-trabajo está en el modelo relacional (24 tablas en 3FN), y la aplicación es el
+trabajo está en el modelo relacional (29 tablas en 3FN/BCNF), y la aplicación es el
 cliente que ejercita **todos** los objetos del motor:
 
-- 24 tablas (CRUD y transacciones).
+- 29 tablas (CRUD y transacciones).
 - 5 vistas.
 - 5 procedimientos almacenados.
 - 5 funciones almacenadas.
+- 2 triggers de coherencia (solo videojuegos tienen género/clasificación).
 
 ---
 
@@ -23,8 +24,9 @@ cliente que ejercita **todos** los objetos del motor:
 |-------------------|--------------------------------------------|-----------------------------------------------------------------------------------|
 | **MySQL**         | 8.0.13 o superior                          | `DEFAULT (UUID())` requiere 8.0.13+; los `CHECK` y las columnas generadas también |
 | **JDK**           | Java 21 (LTS)                              | Target fijado en `pom.xml` (`maven.compiler.release=21`)                          |
-| **Maven**         | 3.8+ *o* IntelliJ IDEA con Maven integrado | `pom.xml` resuelve `mysql-connector-j` 9.7.0 y empaqueta el fat jar               |
+| **Maven**         | 3.8+ *o* IntelliJ IDEA con Maven integrado | `pom.xml` resuelve `mysql-connector-j` 9.7.0 y `flatlaf` 3.7.2; empaqueta el fat jar |
 | **Driver JDBC**   | `com.mysql:mysql-connector-j:9.7.0`        | Lo descarga Maven; no hay que instalarlo a mano                                   |
+| **Look & Feel**   | `com.formdev:flatlaf:3.7.2`                | Tema moderno (Light por defecto, toggle a Dark); compatible con Java 21           |
 | **Base de datos** | Esquema `pixel_zone` cargado               | Ver sección 2                                                                     |
 
 > La app **no** crea la base ni los datos: asume que los scripts ya se
@@ -37,21 +39,31 @@ cliente que ejercita **todos** los objetos del motor:
 ### 2.1 Cargar la base de datos (una sola vez)
 
 Ejecutar los tres scripts **en este orden** (el orden importa: `PZ_PL.sql`
-depende de que existan las tablas):
+depende de que existan las tablas). Se fuerza `--default-character-set=utf8mb4`
+para evitar mojibake (el cliente `mysql` usa `latin1` cuando `LANG` está vacío):
 
 ```bash
-mysql -u root -p < src/main/resources/PZ_DDL.sql   # 1. 24 tablas + restricciones
-mysql -u root -p < src/main/resources/PZ_DML.sql   # 2. datos semilla (UUIDs fijos)
-mysql -u root -p < src/main/resources/PZ_PL.sql    # 3. 5 vistas + 5 procedimientos + 5 funciones
+mysql -u root -p --default-character-set=utf8mb4 < src/main/resources/PZ_DDL.sql   # 1. 29 tablas
+mysql -u root -p --default-character-set=utf8mb4 < src/main/resources/PZ_DML.sql   # 2. datos semilla
+mysql -u root -p --default-character-set=utf8mb4 < src/main/resources/PZ_PL.sql    # 3. 5 vistas + 5 procs + 5 funciones
 ```
+
+> Alternativa de un solo comando: **`./scripts/load-seed.sh`** (fuerza
+> `--default-character-set=utf8mb4`, el orden DDL→DML→PL y `LANG=C.UTF-8`).
+
+> **Importante (encoding):** sin `--default-character-set=utf8mb4`, los acentos
+> del seed (`Público`, `Acción`, …) se guardan doble-codificados (`PÃºblico`,
+> `AcciÃ³n`). El esquema y el JDBC ya son utf8mb4; el problema es solo el cliente
+> de carga.
 
 | Script       | Contenido                                                                                                            |
 |--------------|----------------------------------------------------------------------------------------------------------------------|
-| `PZ_DDL.sql` | `CREATE DATABASE pixel_zone` + 24 `CREATE TABLE` (sin `AUTO_INCREMENT`, PK `CHAR(36)` con `DEFAULT (UUID())`)        |
+| `PZ_DDL.sql` | `CREATE DATABASE pixel_zone` + 29 `CREATE TABLE` (sin `AUTO_INCREMENT`, PK `CHAR(36)` con `DEFAULT (UUID())`)        |
 | `PZ_DML.sql` | Datos semilla coherentes (perfiles, permisos, usuarios, catálogo, ejemplares, venta, renta, apartado, pago, kardex…) |
 | `PZ_PL.sql`  | Objetos programables: 5 vistas `vw_*`, 5 procedimientos `sp_*`, 5 funciones `fn_*`                                   |
 
-> Los scripts son el **contrato congelado**: la aplicación se adapta a ellos, no al revés.
+> Los scripts nacieron como **contrato congelado**; tras la reestructuración
+> 3FN/BCNF la app se adaptó a ellos (ver `checklist-mejoras.md`).
 
 ### 2.2 Configurar la conexión
 
@@ -97,22 +109,25 @@ permisos desde `perfil_permisos`/`permisos`.
 
 ### 3.2 Navegación
 
-La ventana principal tiene **navegación lateral por módulos** (árbol) y un
-`CardLayout` a la derecha. Los módulos e ítems que el perfil no puede usar
-**no se crean** (no aparecen deshabilitados: simplemente no existen).
+La ventana principal tiene **navegación en dos niveles**: un `JTabbedPane`
+superior por módulo (Caja, Inventario, Actores, Consulta SQL) y, dentro de cada
+módulo, una **lista lateral** con `CardLayout`. Los módulos e ítems que el perfil
+no puede usar **no se crean** (no aparecen deshabilitados: simplemente no existen).
 
-| Módulo           | Ítems                               | Permiso requerido              |
-|------------------|-------------------------------------|--------------------------------|
-| **Caja**         | Punto de Venta                      | `GESTION_VENTAS`               |
-|                  | Rentas                              | `GESTION_RENTAS`               |
-|                  | Apartados                           | `GESTION_VENTAS`               |
-| **Inventario**   | Productos                           | `GESTION_INVENTARIO`           |
-|                  | Ejemplares                          | `GESTION_INVENTARIO`           |
-|                  | Proveedores                         | `GESTION_INVENTARIO`           |
-|                  | Compra de usados                    | `GESTION_INVENTARIO`           |
-| **Actores**      | Clientes                            | `GESTION_VENTAS`               |
-|                  | Usuarios                            | administrador (los 3 permisos) |
-| **Consulta SQL** | Vistas / Procedimientos / Funciones | cualquier sesión               |
+| Módulo           | Ítems                                        | Permiso requerido              |
+|------------------|----------------------------------------------|--------------------------------|
+| **Caja**         | Punto de Venta                               | `GESTION_VENTAS`               |
+|                  | Rentas                                       | `GESTION_RENTAS`               |
+|                  | Devoluciones de renta                        | `GESTION_RENTAS`               |
+|                  | Apartados                                    | `GESTION_VENTAS`               |
+| **Inventario**   | Productos                                    | `GESTION_INVENTARIO`           |
+|                  | Ejemplares                                   | `GESTION_INVENTARIO`           |
+|                  | Compras a proveedor                          | `GESTION_INVENTARIO`           |
+|                  | Compra de usados                             | `GESTION_INVENTARIO`           |
+|                  | Proveedores                                  | `GESTION_INVENTARIO`           |
+| **Actores**      | Clientes                                     | `GESTION_VENTAS`               |
+|                  | Usuarios                                     | administrador (los 3 permisos) |
+| **Consulta SQL** | Vistas / Procedimientos / Funciones          | cualquier sesión               |
 
 > El esquema no tiene `GESTION_CLIENTES` ni `GESTION_PROVEEDORES` ni columna
 > `es_admin`: los mapeos de la tabla anterior son una **decisión documentada**
@@ -206,9 +221,10 @@ com.pixelzone
 
 ## 6. Proceso de planeación del programa
 
-La base de datos y los scripts SQL son la **única parte que se conservó** de la
-versión anterior del proyecto. Por eso lo primero fue tratarlos como un
-**contrato congelado** y planear la app *alrededor* de ellos, no al revés.
+La base de datos y los scripts SQL fueron la **única parte que se conservó** de
+la versión anterior del proyecto. Por eso, durante la planeación, se trataron
+como un **contrato congelado** y se planeó la app *alrededor* de ellos.
+**Después** el contrato se reestructuró a 3FN/BCNF (ver `checklist-mejoras.md`).
 
 ### 6.1 Cuestionario previo (`checklist.md`)
 
@@ -259,7 +275,7 @@ contra la base real antes de pasar a la siguiente:
 |---------------------------|-----------------------------------------------------------------------------------------|
 | Generación de UUID        | En Java, insertado explícitamente (no `getGeneratedKeys()` con `DEFAULT (UUID())`)      |
 | Columnas `subtotal`       | Excluidas de los `INSERT` (son `GENERATED ... VIRTUAL`)                                 |
-| Arco exclusivo de `pagos` | Se llena un solo FK y los otros tres van `NULL`                                         |
+| Pagos: arco exclusivo + movimiento | Un solo FK no nulo y los otros tres `NULL`; `tipo_movimiento` (`cobro`/`reembolso`) y `concepto` coherentes con la operación |
 | ENUMs                     | Los combos usan los literales exactos del DDL (`danado`/`danio` sin acento)             |
 | Folios                    | `VTA-<millis>` y `APT-<millis>`; el `UNIQUE` protege colisiones                         |
 | Kardex                    | Escrito por la app en cada cambio de estado, en la misma transacción                    |
@@ -280,27 +296,32 @@ contra la base real antes de pasar a la siguiente:
 - **`vw_inventario_ejemplares`** no expone `id_ejemplar`, por lo que el CRUD de
   ejemplares usa una consulta con JOIN propia; la vista sí se consume en el
   módulo "Vistas".
-- Tablas **sin consumidor directo** en la UI: `promociones` y
-  `devoluciones_garantia` (solo existen en el esquema; ninguna vista/SP/función
-  las usa tampoco).
+- Tablas **sin consumidor directo** en la UI: `promociones`,
+  `promocion_alcance` y `devoluciones_garantia` (solo existen en el esquema;
+  ninguna vista/SP/función las usa tampoco).
+- **Deudas conscientes** (documentadas, no implementadas en esta versión):
+  `promocion_alcance` es polimórfica y sin FK (validación en la app), y la
+  **auditoría de cancelaciones** (fecha, motivo, usuario) queda pendiente para
+  cuando el flujo de cancelaciones tenga UI real.
 
 ## 8. Estructura del repositorio
 
 ```
 .
 ├── pom.xml
-├── PresentacionDirectivos         Especificaciones de la presentación ante directivos
-├── GuionDirectivos.md             Guion de la presentación ante directivos (40 min)
-├── GuionPresentacion.md           Guion de la presentación académica por integrante
-├── checklist.md                   Cuestionario de planeación (45 preguntas)
-├── answers_checklist.md           Respuestas y correcciones al cuestionario
-├── overview/
+├── GuionDirectivos.md             Guion de la presentación ante directivos
+├── scripts/
+│   └── load-seed.sh               Carga DDL/DML/PL con utf8mb4 (evita mojibake)
+├── docs/
 │   ├── README.md                  Este documento
-│   └── database-structure.md     Análisis del esquema y normalización
+│   ├── database-structure.md      Análisis del esquema y normalización
+│   ├── checklist.md               Cuestionario de planeación (45 preguntas)
+│   ├── answers_checklist.md       Respuestas y correcciones al cuestionario
+│   └── checklist-mejoras.md       Reestructuración 3FN/BCNF y mejoras pendientes
 └── src/main/
     ├── java/com/pixelzone/        Código de la aplicación
     └── resources/
-        ├── PZ_DDL.sql             Esquema (24 tablas)
+        ├── PZ_DDL.sql             Esquema (29 tablas)
         ├── PZ_DML.sql             Datos semilla
         ├── PZ_PL.sql              Vistas, procedimientos y funciones
         └── db.properties          Configuración de conexión (editable)

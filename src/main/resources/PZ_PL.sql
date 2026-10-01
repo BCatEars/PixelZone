@@ -57,6 +57,7 @@ SELECT
     r.fecha_renta AS Fecha_Renta,
     r.fecha_limite AS Fecha_Limite,
     DATEDIFF(r.fecha_limite, CURDATE()) AS Dias_Restantes,
+    GREATEST(DATEDIFF(CURDATE(), r.fecha_limite), 0) AS Dias_Atraso,
     r.monto_renta AS Monto_Renta,
     r.deposito AS Deposito,
     r.estado AS Estado
@@ -79,8 +80,9 @@ SELECT
     (COALESCE(SUM(dp.subtotal), 0) - pe.descuento + pe.impuestos + pe.costo_envio) AS Total_Pedido,
     pe.estado AS Estado
 FROM pedidos pe
-         INNER JOIN direcciones_cliente dc ON pe.id_direccion = dc.id_direccion
-         INNER JOIN clientes cl ON dc.id_cliente = cl.id_cliente
+         INNER JOIN clientes cl ON pe.id_cliente = cl.id_cliente
+         LEFT JOIN pedido_envio pv ON pe.id_pedido = pv.id_pedido
+         LEFT JOIN direcciones_cliente dc ON pv.id_direccion = dc.id_direccion
          LEFT JOIN detalle_pedidos dp ON pe.id_pedido = dp.id_pedido
 GROUP BY pe.id_pedido, pe.fecha_pedido, cl.nombre, dc.calle, dc.colonia, dc.ciudad, dc.estado, dc.codigo_postal, pe.paqueteria, pe.numero_guia, pe.descuento, pe.impuestos, pe.costo_envio, pe.estado;
 
@@ -116,7 +118,7 @@ BEGIN
     SELECT
         p.codigo_interno AS Codigo,
         p.nombre AS Producto,
-        p.tipo AS Tipo,
+        c.tipo AS Tipo,
         c.nombre AS Categoria,
         COALESCE(pl.nombre, 'Sin Plataforma') AS Plataforma,
         p.precio_nuevo AS Precio_Nuevo,
@@ -274,7 +276,13 @@ CREATE FUNCTION fn_ingresos_por_metodo(p_met VARCHAR(30))
     READS SQL DATA
 BEGIN
     DECLARE v_ingresos DECIMAL(10,2) DEFAULT 0.00;
-    SELECT COALESCE(SUM(monto), 0.00) INTO v_ingresos
+    -- Ingreso neto: los reembolsos restan y el deposito (garantia) no suma.
+    SELECT COALESCE(SUM(
+               CASE
+                   WHEN concepto = 'deposito' THEN 0.00
+                   WHEN tipo_movimiento = 'cobro' THEN monto
+                   ELSE -monto
+               END), 0.00) INTO v_ingresos
     FROM pagos
     WHERE metodo_pago = p_met;
     RETURN COALESCE(v_ingresos, 0.00);

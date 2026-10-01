@@ -17,6 +17,7 @@ import javax.swing.JOptionPane;
 import javax.swing.JTextField;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -35,17 +36,17 @@ public class PanelEjemplares extends PanelCrudBase {
     private final ClienteDAO clienteDAO = new ClienteDAO();
     private final EjemplarDAO ejemplarDAO = new EjemplarDAO();
 
-    private final JComboBox<Producto> comboProducto = new JComboBox<>();
+    private final ComboBuscable<Producto> comboProducto = new ComboBuscable<>(Object::toString);
     private final JTextField campoSerie = new JTextField(16);
     private final JComboBox<String> comboCondicion = new JComboBox<>(new String[]{"nuevo", "usado"});
-    private final JComboBox<String> comboEstado = new JComboBox<>(
-            new String[]{"disponible", "rentado", "vendido", "apartado", "reservado", "baja"});
+    private final JLabel etiquetaEstadoActual = new JLabel("-");
     private final JTextField campoCosto = new JTextField(12);
     private final JTextField campoPrecio = new JTextField(12);
     private final JCheckBox checkCaja = new JCheckBox("Tiene caja", true);
     private final JCheckBox checkManual = new JCheckBox("Tiene manual", true);
     private final JTextField campoObservaciones = new JTextField(16);
-    private final JComboBox<Cliente> comboClienteOrigen = new JComboBox<>();
+    private final JTextField campoCantidadLote = new JTextField("5", 5);
+    private final ComboBuscable<Cliente> comboClienteOrigen = new ComboBuscable<>(Object::toString);
 
     private JLabel etiquetaClienteOrigen;
     private List<Ejemplar> filas = List.of();
@@ -61,18 +62,21 @@ public class PanelEjemplares extends PanelCrudBase {
         campo("Producto:", comboProducto);
         campo("Numero de serie:", campoSerie);
         campo("Condicion:", comboCondicion);
-        campo("Estado:", comboEstado);
+        campo("Estado actual:", etiquetaEstadoActual);
         campo("Costo:", campoCosto);
         campo("Precio de venta:", campoPrecio);
         campoAnchoCompleto(checkCaja);
         campoAnchoCompleto(checkManual);
         campo("Observaciones:", campoObservaciones);
         etiquetaClienteOrigen = campo("Cliente origen:", comboClienteOrigen);
+        campo("Cantidad del lote:", campoCantidadLote);
 
-        agregarBoton("Guardar", () -> guardar());
-        agregarBoton("Actualizar", () -> actualizar());
+        agregarBoton("Guardar", this::guardar);
+        agregarBoton("Generar lote", this::generarLote);
+        agregarBoton("Actualizar", this::actualizar);
         agregarBoton("Limpiar", this::limpiar);
-        agregarBoton("Dar de baja", () -> darDeBaja());
+        agregarBoton("Dar de baja", this::darDeBaja);
+        agregarBoton("Reactivar", this::reactivar);
 
         comboCondicion.addActionListener(e -> actualizarHabilitadoClienteOrigen());
         comboProducto.addActionListener(e -> sugerirPrecio());
@@ -81,14 +85,8 @@ public class PanelEjemplares extends PanelCrudBase {
 
     private void cargarCombos() {
         try {
-            comboProducto.removeAllItems();
-            for (Producto p : productoDAO.listarActivos()) {
-                comboProducto.addItem(p);
-            }
-            comboClienteOrigen.removeAllItems();
-            for (Cliente c : clienteDAO.listarActivos()) {
-                comboClienteOrigen.addItem(c);
-            }
+            comboProducto.setItems(productoDAO.listarActivos());
+            comboClienteOrigen.setItems(clienteDAO.listarActivos());
             comboClienteOrigen.setSelectedIndex(-1);
         } catch (DAOException ex) {
             JOptionPane.showMessageDialog(this, ex.getMessage(),
@@ -125,6 +123,61 @@ public class PanelEjemplares extends PanelCrudBase {
         refrescar();
     }
 
+    private void generarLote() throws DAOException {
+        Producto producto = (Producto) comboProducto.getSelectedItem();
+        if (producto == null) {
+            aviso("No hay productos cargados.");
+            return;
+        }
+        int cantidad;
+        try {
+            cantidad = Integer.parseInt(campoCantidadLote.getText().trim());
+        } catch (NumberFormatException ex) {
+            aviso("La cantidad del lote debe ser un numero entero.");
+            return;
+        }
+        if (cantidad <= 0 || cantidad > 100) {
+            aviso("La cantidad del lote debe estar entre 1 y 100.");
+            return;
+        }
+        BigDecimal costo = parseDecimal(campoCosto.getText(), "costo");
+        if (costo == null) {
+            return;
+        }
+        BigDecimal precio = parseDecimal(campoPrecio.getText(), "precio de venta");
+        if (precio == null) {
+            return;
+        }
+        if (costo.signum() < 0 || precio.signum() < 0) {
+            aviso("Costo y precio no pueden ser negativos.");
+            return;
+        }
+        if (!confirmar("¿Generar " + cantidad + " ejemplares de " + producto.getNombre()
+                + "? Las series se generan automaticamente.")) {
+            return;
+        }
+        Cliente origen = (Cliente) comboClienteOrigen.getSelectedItem();
+        boolean usado = "usado".equals(comboCondicion.getSelectedItem());
+        List<Ejemplar> lote = new ArrayList<>();
+        for (int i = 0; i < cantidad; i++) {
+            Ejemplar e = new Ejemplar();
+            e.setIdEjemplar(UUID.randomUUID().toString());
+            e.setIdProducto(producto.getIdProducto());
+            e.setCondicion((String) comboCondicion.getSelectedItem());
+            e.setCosto(costo);
+            e.setPrecioVenta(precio);
+            e.setTieneCaja(checkCaja.isSelected());
+            e.setTieneManual(checkManual.isSelected());
+            e.setObservaciones(textoONull(campoObservaciones.getText()));
+            e.setIdClienteOrigen(usado && origen != null ? origen.getIdCliente() : null);
+            lote.add(e);
+        }
+        ejemplarDAO.crearLote(lote, sesion.getUsuario().getIdUsuario());
+        frame.setMensaje("Lote creado: " + cantidad + " ejemplares de " + producto.getNombre());
+        limpiar();
+        refrescar();
+    }
+
     private void actualizar() throws DAOException {
         Ejemplar seleccionado = ejemplarSeleccionado();
         if (seleccionado == null) {
@@ -135,7 +188,7 @@ public class PanelEjemplares extends PanelCrudBase {
         if (e == null) {
             return;
         }
-        ejemplarDAO.actualizar(e, sesion.getUsuario().getIdUsuario());
+        ejemplarDAO.actualizar(e);
         frame.setMensaje("Ejemplar actualizado: " + e.getNumeroSerie());
         refrescar();
     }
@@ -154,6 +207,24 @@ public class PanelEjemplares extends PanelCrudBase {
         }
         ejemplarDAO.darDeBaja(seleccionado.getIdEjemplar(), sesion.getUsuario().getIdUsuario());
         frame.setMensaje("Ejemplar dado de baja: " + seleccionado.getNumeroSerie());
+        limpiar();
+        refrescar();
+    }
+
+    private void reactivar() throws DAOException {
+        Ejemplar seleccionado = ejemplarSeleccionado();
+        if (seleccionado == null) {
+            aviso("Selecciona un ejemplar de la tabla primero.");
+            return;
+        }
+        int opcion = JOptionPane.showConfirmDialog(this,
+                "¿Reactivar la serie " + seleccionado.getNumeroSerie() + " (baja -> disponible)?",
+                "Confirmar reactivacion", JOptionPane.YES_NO_OPTION);
+        if (opcion != JOptionPane.YES_OPTION) {
+            return;
+        }
+        ejemplarDAO.reactivar(seleccionado.getIdEjemplar(), sesion.getUsuario().getIdUsuario());
+        frame.setMensaje("Ejemplar reactivado: " + seleccionado.getNumeroSerie());
         limpiar();
         refrescar();
     }
@@ -187,7 +258,6 @@ public class PanelEjemplares extends PanelCrudBase {
         e.setIdProducto(producto.getIdProducto());
         e.setNumeroSerie(serie);
         e.setCondicion((String) comboCondicion.getSelectedItem());
-        e.setEstado((String) comboEstado.getSelectedItem());
         e.setCosto(costo);
         e.setPrecioVenta(precio);
         e.setTieneCaja(checkCaja.isSelected());
@@ -238,7 +308,7 @@ public class PanelEjemplares extends PanelCrudBase {
         seleccionarProducto(e.getIdProducto());
         campoSerie.setText(e.getNumeroSerie());
         comboCondicion.setSelectedItem(e.getCondicion());
-        comboEstado.setSelectedItem(e.getEstado());
+        etiquetaEstadoActual.setText(e.getEstado());
         campoCosto.setText(Numeros.formatear(e.getCosto()));
         campoPrecio.setText(Numeros.formatear(e.getPrecioVenta()));
         checkCaja.setSelected(e.isTieneCaja());
@@ -251,7 +321,7 @@ public class PanelEjemplares extends PanelCrudBase {
     private void limpiar() {
         campoSerie.setText("");
         comboCondicion.setSelectedIndex(0);
-        comboEstado.setSelectedItem("disponible");
+        etiquetaEstadoActual.setText("-");
         campoCosto.setText("");
         campoPrecio.setText("");
         checkCaja.setSelected(true);
@@ -286,26 +356,14 @@ public class PanelEjemplares extends PanelCrudBase {
     }
 
     private void seleccionarProducto(String idProducto) {
-        for (int i = 0; i < comboProducto.getItemCount(); i++) {
-            if (comboProducto.getItemAt(i).getIdProducto().equals(idProducto)) {
-                comboProducto.setSelectedIndex(i);
-                return;
-            }
-        }
+        comboProducto.preseleccionar(p -> p.getIdProducto().equals(idProducto));
     }
 
     private void seleccionarCliente(String idCliente) {
         if (idCliente == null) {
-            if (comboClienteOrigen.getItemCount() > 0) {
-                comboClienteOrigen.setSelectedIndex(-1);
-            }
+            comboClienteOrigen.setSelectedIndex(-1);
             return;
         }
-        for (int i = 0; i < comboClienteOrigen.getItemCount(); i++) {
-            if (comboClienteOrigen.getItemAt(i).getIdCliente().equals(idCliente)) {
-                comboClienteOrigen.setSelectedIndex(i);
-                return;
-            }
-        }
+        comboClienteOrigen.preseleccionar(c -> c.getIdCliente().equals(idCliente));
     }
 }

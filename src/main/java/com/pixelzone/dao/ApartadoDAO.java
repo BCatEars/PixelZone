@@ -33,8 +33,8 @@ public class ApartadoDAO {
                     + "ORDER BY a.fecha_inicio DESC";
 
     private static final String SQL_INSERT =
-            "INSERT INTO apartados (id_apartado, folio, id_cliente, id_ejemplar, fecha_limite, "
-                    + "importe_anticipo, estado) VALUES (?, ?, ?, ?, ?, ?, 'activo')";
+            "INSERT INTO apartados (id_apartado, folio, id_cliente, id_usuario, id_ejemplar, "
+                    + "fecha_limite, importe_anticipo, estado) VALUES (?, ?, ?, ?, ?, ?, ?, 'activo')";
 
     private static final String SQL_APARTAR =
             "UPDATE ejemplares SET estado = 'apartado' WHERE id_ejemplar = ? AND estado = 'disponible'";
@@ -58,8 +58,9 @@ public class ApartadoDAO {
                     + "WHERE a.id_apartado = ? AND a.estado = 'activo' FOR UPDATE";
 
     private static final String SQL_PAGO =
-            "INSERT INTO pagos (id_pago, id_venta, id_pedido, id_renta, id_apartado, monto, metodo_pago) "
-                    + "VALUES (?, NULL, NULL, NULL, ?, ?, ?)";
+            "INSERT INTO pagos (id_pago, id_venta, id_pedido, id_renta, id_apartado, monto, "
+                    + "tipo_movimiento, concepto, metodo_pago) "
+                    + "VALUES (?, NULL, NULL, NULL, ?, ?, 'cobro', 'apartado', ?)";
 
     public List<Apartado> listar() throws DAOException {
         List<Apartado> lista = new ArrayList<>();
@@ -96,9 +97,10 @@ public class ApartadoDAO {
                     ps.setString(1, idApartado);
                     ps.setString(2, folio);
                     ps.setString(3, idCliente);
-                    ps.setString(4, idEjemplar);
-                    ps.setObject(5, fechaLimite);
-                    ps.setBigDecimal(6, anticipo);
+                    ps.setString(4, idUsuario);
+                    ps.setString(5, idEjemplar);
+                    ps.setObject(6, fechaLimite);
+                    ps.setBigDecimal(7, anticipo);
                     ps.executeUpdate();
                 }
                 try (PreparedStatement ps = conn.prepareStatement(SQL_APARTAR)) {

@@ -28,8 +28,8 @@ public class PanelCompraUsado extends PanelCrudBase {
     private final ProductoDAO productoDAO = new ProductoDAO();
     private final CompraUsadoDAO compraDAO = new CompraUsadoDAO();
 
-    private final JComboBox<Cliente> comboCliente = new JComboBox<>();
-    private final JComboBox<Producto> comboProducto = new JComboBox<>();
+    private final ComboBuscable<Cliente> comboCliente = new ComboBuscable<>(Object::toString);
+    private final ComboBuscable<Producto> comboProducto = new ComboBuscable<>(Object::toString);
     private final JTextField campoSerie = new JTextField(16);
     private final JTextField campoCosto = new JTextField(10);
     private final JTextField campoPrecioVenta = new JTextField(10);
@@ -58,14 +58,8 @@ public class PanelCompraUsado extends PanelCrudBase {
 
     private void cargarCombos() {
         try {
-            comboCliente.removeAllItems();
-            for (Cliente c : clienteDAO.listarActivos()) {
-                comboCliente.addItem(c);
-            }
-            comboProducto.removeAllItems();
-            for (Producto p : productoDAO.listarActivos()) {
-                comboProducto.addItem(p);
-            }
+            comboCliente.setItems(clienteDAO.listarActivos());
+            comboProducto.setItems(productoDAO.listarActivos());
         } catch (DAOException ex) {
             aviso(ex.getMessage());
         }

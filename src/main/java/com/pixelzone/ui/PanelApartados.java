@@ -28,8 +28,8 @@ public class PanelApartados extends PanelCrudBase {
     private final EjemplarDAO ejemplarDAO = new EjemplarDAO();
     private final ApartadoDAO apartadoDAO = new ApartadoDAO();
 
-    private final JComboBox<Cliente> comboCliente = new JComboBox<>();
-    private final JComboBox<Ejemplar> comboEjemplar = new JComboBox<>();
+    private final ComboBuscable<Cliente> comboCliente = new ComboBuscable<>(Object::toString);
+    private final ComboBuscable<Ejemplar> comboEjemplar = new ComboBuscable<>(Object::toString);
     private final JTextField campoFechaLimite = new JTextField(LocalDate.now().plusDays(15).toString(), 10);
     private final JTextField campoAnticipo = new JTextField("0", 10);
     private final JComboBox<String> comboMetodo =
@@ -59,14 +59,8 @@ public class PanelApartados extends PanelCrudBase {
 
     private void cargarCombos() {
         try {
-            comboCliente.removeAllItems();
-            for (Cliente c : clienteDAO.listarActivos()) {
-                comboCliente.addItem(c);
-            }
-            comboEjemplar.removeAllItems();
-            for (Ejemplar e : ejemplarDAO.listarDisponibles()) {
-                comboEjemplar.addItem(e);
-            }
+            comboCliente.setItems(clienteDAO.listarActivos());
+            comboEjemplar.setItems(ejemplarDAO.listarDisponibles());
         } catch (DAOException ex) {
             aviso(ex.getMessage());
         }

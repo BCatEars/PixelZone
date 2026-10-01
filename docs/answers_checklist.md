@@ -5,7 +5,7 @@ Análisis completo y actualizado con el esquema DDL oficial (`PZ_DDL.sql` / `pix
 ## 🔴 Errores contra el Esquema Fijo (Puntos 1 al 6)
 
 1. **Tabla Fantasma `auditoria` (Eliminada):**
-* El script `PZ_DDL.sql` contiene exactamente **24 tablas**. La tabla `auditoria` **no existe** en la base de datos `pixel_zone`.
+* El script `PZ_DDL.sql` contiene **29 tablas** (reestructuración 3FN/BCNF + §7 + `configuracion` + `generos`). La tabla `auditoria` **no existe** en la base de datos `pixel_zone`.
 
 
 * *Acción:* Se elimina por completo de las listas de UUIDs (Q3) y de tablas fuera de alcance (Q6).
@@ -111,7 +111,7 @@ $$\text{Folio} = \text{"VTA-"} + \text{System.currentTimeMillis()}$$
 4. `INSERT INTO movimientos_inventario` (registra salida en Kardex con `tipo_movimiento = 'salida'`, `motivo = 'venta'`).
 
 
-5. `INSERT INTO pagos` (registra el cobro vinculando `id_venta` y dejando nulos los otros tres campos del Check).
+5. `INSERT INTO pagos` (registra el cobro con `tipo_movimiento = 'cobro'`, `concepto = 'venta'`, vinculando `id_venta` y dejando nulos los otros tres campos del arco).
 
 
 
@@ -174,7 +174,7 @@ $$\text{Folio} = \text{"VTA-"} + \text{System.currentTimeMillis()}$$
 
 
 
-5. **Arco Exclusivo en `pagos` (`chk_pagos_una_operacion`):** Java inserta el UUID de la operación en curso (`id_venta`, `id_pedido`, `id_renta` o `id_apartado`) y asigna `Types.NULL` (o excluye la columna en el SQL) para las otras tres.
+5. **Pagos: arco exclusivo + cobro/reembolso (`pagos`).** Java inserta el UUID de la operación en curso (`id_venta`, `id_pedido`, `id_renta` o `id_apartado`) y deja `NULL` las otras tres. Además, cada fila lleva `tipo_movimiento` (`cobro`/`reembolso`) y `concepto` (`venta`/`pedido`/`renta`/`deposito`/`recargo`/`apartado`), que `chk_pagos_concepto` obliga a que coincida con la operación. El `deposito` de renta es **garantía**: se cobra al alta y se reembolsa al devolver, y no cuenta como ingreso (`fn_ingresos_por_metodo` lo excluye).
 
 
 
@@ -300,7 +300,7 @@ public List<Producto> listar() throws DAOException {
 
 ### Round 6 — Interfaz de Usuario y Motores SQL
 
-35. **Navegación:** `JTabbedPane` con paneles independientes (`JPanel`), cada uno con su propio `JTable` y `DefaultTableModel`.
+35. **Navegación:** **híbrida**: `JTabbedPane` superior por módulo (Caja, Inventario, Actores, Consulta SQL) + lista lateral con `CardLayout` dentro de cada módulo; un panel independiente por item con su propio `JTable`/`DefaultTableModel`.
 36. **Subprocesos (Threading):** Consultas pesadas ejecutadas sobre `SwingWorker` para no bloquear el hilo de eventos de Swing (EDT).
 37. **Sentinela en Procedimientos Almacenados:** Si el usuario selecciona "Todos", la UI envía `""` para `sp_ejemplares_por_estado` y `sp_pagos_por_metodo`. Para `sp_productos_por_plataforma` (que **no** tiene centinela, y donde `LIKE '%%'` descarta `id_plataforma IS NULL`), la capa DAO consulta directamente la tabla `productos` con JOIN a `categorias`/`plataformas`.
 
@@ -345,9 +345,9 @@ public List<Producto> listar() throws DAOException {
 | ¿Uso de `try-with-resources` en todas las operaciones? | **SÍ**<br> |
 | ¿La aplicación escribe en `movimientos_inventario`? | **SÍ**<br> |
 | ¿La aplicación inserta pagos directamente? | **SÍ** *(en la transacción del Punto de Venta)*<br> |
-| ¿Se conserva el diseño de 7 pestañas principales? | **SÍ**<br> |
+| ¿Se conserva el diseño de 7 pestañas principales? | **Híbrido** *(JTabbedPane por módulo + lista lateral + `CardLayout`)*<br> |
 | ¿Se acepta Java 26 como target principal? | **NO** *(Fijado en Java 21 LTS)* |
-| ¿Los scripts SQL se mantienen sin modificaciones? | **SÍ**<br> |
+| ¿Los scripts SQL se mantienen sin modificaciones? | **NO** *(reestructurados a 3FN/BCNF; ver `checklist-mejoras.md`)*<br> |
 
 ---
 
@@ -403,8 +403,9 @@ public class VentaPOSDAO {
         """;
 
         String sqlPago = """
-            INSERT INTO pagos (id_pago, id_venta, id_pedido, id_renta, id_apartado, monto, metodo_pago)
-            VALUES (?, ?, NULL, NULL, NULL, ?, ?)
+            INSERT INTO pagos (id_pago, id_venta, id_pedido, id_renta, id_apartado, monto,
+                               tipo_movimiento, concepto, metodo_pago)
+            VALUES (?, ?, NULL, NULL, NULL, ?, 'cobro', 'venta', ?)
         """;
 
         try (Connection conn = DatabaseConfig.getConnection()) {
